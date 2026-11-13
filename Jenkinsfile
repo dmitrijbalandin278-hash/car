@@ -23,15 +23,13 @@ pipeline {
                 }
             }
             steps {
-                // 1. Убиваем старые процессы Python (безопасно, без ошибок)
-                bat 'powershell -Command "$p = Get-Process python -ErrorAction SilentlyContinue; if ($p) { $p | Stop-Process -Force }"'
-                
+                // 1. Безопасно завершаем старые процессы Python (не падает, если их нет)
+                bat 'taskkill /F /IM python.exe /T > nul 2>&1 || exit 0'
+
                 // 2. Запускаем приложение в фоне на порту 5000
-                // Обратите внимание: мы запускаем app.py, но если в нем прописан порт 80, 
-                // Flask может выдать ошибку. Поэтому лучше запустить его через команду с явным портом:
                 bat 'powershell -Command "Start-Process python -ArgumentList \'-c\', \'from app import app; app.run(port=5000)\' -RedirectStandardOutput \'app.log\' -RedirectStandardError \'app.err.log\' -WindowStyle Hidden"'
                 
-                // 3. Даем серверу 4 секунды на запуск
+                // 3. Ждем 4 секунды для инициализации сервера
                 bat 'powershell -Command "Start-Sleep -Seconds 4"'
 
                 // 4. Проверяем логи на наличие критических ошибок ДО проверки сайта
