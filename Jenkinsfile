@@ -26,17 +26,22 @@ pipeline {
                 // 1. Убиваем старые процессы Python, чтобы освободить порт 80
                 bat 'taskkill /F /IM python.exe /T > nul 2>&1 || exit 0'
 
-                // 2. Удаляем старую задачу в планировщике (если есть)
-                bat 'schtasks /Delete /TN "CarRentalApp" /F > nul 2>&1 || exit 0'
-
-                // 3. Создаем и запускаем задачу в планировщике
-                // Это полностью отвязывает процесс от Jenkins, и он не будет убит
+                // 2. Создаем bat-файл для запуска приложения
+                // Это обходит все проблемы с кавычками в Groovy/PowerShell
                 bat '''
-                    schtasks /Create /TN "CarRentalApp" /TR "python -c \\"from app import app; app.run(host='127.0.0.1', port=80)\\"" /SC ONCE /ST 00:00 /F
-                    schtasks /Run /TN "CarRentalApp"
+                    echo @echo off > run_app.bat
+                    echo cd /d %CD% >> run_app.bat
+                    echo python -c "from app import app; app.run(host='127.0.0.1', port=80)" >> run_app.bat
+                '''
+
+                // 3. Запускаем bat-файл в фоне через PowerShell
+                // -WindowStyle Hidden скрывает окно, -PassThru показывает PID
+                // Процесс полностью отвязывается от Jenkins
+                bat '''
+                    powershell -Command "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c run_app.bat' -WindowStyle Hidden -PassThru; Write-Host 'Запущен процесс с PID:' $p.Id"
                 '''
                 
-                // 4. Ждем 5 секунд для инициализации
+                // 4. Ждем 5 секунд для инициализации сервера
                 bat 'powershell -Command "Start-Sleep -Seconds 5"'
 
                 // 5. Проверяем доступность сайта
