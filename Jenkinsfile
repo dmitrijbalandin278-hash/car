@@ -7,7 +7,7 @@ pipeline {
     }
 
     environment {
-        // Укажите ваш путь к Python (судя по логам, это C:\Python314\python.exe)
+        // ВАЖНО: Укажите точный путь к python.exe, который использует Jenkins
         PYTHON = 'C:\\Python314\\python.exe'
     }
 
@@ -45,16 +45,16 @@ pipeline {
                 // 1. Убиваем старые процессы Python, чтобы освободить порт 80
                 bat 'taskkill /F /IM python.exe /T > nul 2>&1 || exit 0'
 
-                // 2. Создаем временный bat-файл для запуска сервера
+                // 2. Создаем временный bat-файл для запуска сервера (без проблем с кавычками)
                 bat '''
                     echo @echo off > run_server.bat
                     echo cd /d %CD% >> run_server.bat
                     echo "%PYTHON%" -c "from app import app; app.run(host='127.0.0.1', port=80)" >> run_server.bat
                 '''
 
-                // 3. Запускаем сервер в фоне, защищая его от завершения Jenkins
-                // BUILD_ID=dontKillMe — официальный способ сказать Jenkins "не убивай этот процесс"
-                withEnv(['BUILD_ID=dontKillMe']) {
+                // 3. Запускаем сервер в фоне, ЗАЩИЩАЯ ЕГО ОТ ЗАВЕРШЕНИЯ JENKINS
+                // JENKINS_NODE_COOKIE — правильная переменная для Pipeline
+                withEnv(['JENKINS_NODE_COOKIE=dontKillMe']) {
                     bat '''
                         powershell -Command "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c run_server.bat' -WindowStyle Hidden -PassThru; Write-Host 'Запущен процесс с PID:' $p.Id"
                     '''
