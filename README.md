@@ -14,7 +14,7 @@
 
 ## Требования
 - Python 3.10+
-- pip
+- pip123123
 
 ## Запуск в Windows PowerShell
 ```powershell
