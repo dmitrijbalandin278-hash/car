@@ -23,25 +23,26 @@ pipeline {
                 }
             }
             steps {
-                bat 'powershell -Command "Get-Process python -ErrorAction SilentlyContinue | Stop-Process -Force"'
-
-                bat 'powershell -Command "Start-Process python -ArgumentList \'app.py\' -RedirectStandardOutput \'app.log\' -RedirectStandardError \'app.err.log\' -WindowStyle Hidden"'
+                // 1. Убиваем старые процессы Python (безопасно, без ошибок)
+                bat 'powershell -Command "$p = Get-Process python -ErrorAction SilentlyContinue; if ($p) { $p | Stop-Process -Force }"'
                 
-                bat 'powershell -Command "Start-Sleep -Seconds 5"'
-          
+                // 2. Запускаем приложение в фоне на порту 5000
+                // Обратите внимание: мы запускаем app.py, но если в нем прописан порт 80, 
+                // Flask может выдать ошибку. Поэтому лучше запустить его через команду с явным портом:
+                bat 'powershell -Command "Start-Process python -ArgumentList \'-c\', \'from app import app; app.run(port=5000)\' -RedirectStandardOutput \'app.log\' -RedirectStandardError \'app.err.log\' -WindowStyle Hidden"'
+                
+                // 3. Даем серверу 4 секунды на запуск
+                bat 'powershell -Command "Start-Sleep -Seconds 4"'
+
+                // 4. Проверяем логи на наличие критических ошибок ДО проверки сайта
                 bat '''
-                    echo Проверка доступности сайта...
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok = $false; $urls = @('http://127.0.0.1/', 'http://127.0.0.1:5000/'); foreach ($u in $urls) { for ($i = 0; $i -lt 10; $i++) { try { $r = Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}; Start-Sleep -Seconds 1 }; if ($ok) { break } }; if (-not $ok) { exit 1 }"
+                    powershell -Command "if (Test-Path app.err.log) { $err = Get-Content app.err.log -Raw; if ($err -match 'Error|Traceback|PermissionError') { Write-Host '=== ОШИБКА В ЛОГАХ ==='; Write-Host $err; exit 1 } }"
+                '''
 
-                    if errorlevel 1 (
-                        echo ОШИБКА: сайт не отвечает ни на порту 80, ни на порту 5000.
-                        echo --- ЛОГИ ПРИЛОЖЕНИЯ (app.log) ---
-                        type app.log
-                        echo --- ОШИБКИ ПРИЛОЖЕНИЯ (app.err.log) ---
-                        type app.err.log
-                        exit /b 1
-                    )
-
+                // 5. Проверяем доступность сайта на порту 5000
+                bat '''
+                    echo Проверка доступности сайта на http://127.0.0.1:5000/...
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok = $false; for ($i = 0; $i -lt 5; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:5000/' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}; Start-Sleep -Seconds 1 }; if (-not $ok) { Write-Host '=== ОШИБКА: САЙТ НЕ ОТВЕЧАЕТ НА ПОРТУ 5000 ==='; if (Test-Path app.err.log) { Get-Content app.err.log }; exit 1 }"
                     echo Сайт успешно запущен!
                 '''
             }
