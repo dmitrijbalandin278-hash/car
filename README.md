@@ -15,7 +15,7 @@
 ## Требования
 - Python 3.10+
 - pip
-
+123123
 ## Запуск в Windows PowerShell
 ```powershell
 python -m venv .venv
