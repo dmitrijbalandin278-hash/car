@@ -1,52 +1,83 @@
 pipeline {
     agent any
 
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+    }
+
+    environment {
+      
+        PYTHON = 'C:\\Python314\\python.exe'
+    }
+
     stages {
         stage('Checkout') {
-            steps { 
-                checkout scm 
-            }
-        }
-
-        stage('Run tests') {
             steps {
-                bat "python -m pip install -r requirements.txt"
-                bat "python -m pytest -v"
+                checkout scm
+                bat 'echo Branch: %BRANCH_NAME%'
             }
         }
 
-        stage('Deploy to main') {
-            when {
-                expression {
-                    def b = env.GIT_BRANCH ?: env.BRANCH_NAME ?: ''
-                    return b == 'main' || b == 'origin/main' || b == 'refs/heads/main'
+        stage('Setup') {
+            steps {
+                bat '"%PYTHON%" -m pip install -r requirements.txt'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                bat 'if not exist reports mkdir reports'
+                bat '"%PYTHON%" -m pytest -v --junitxml=reports/results.xml'
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'reports/results.xml'
                 }
             }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
             steps {
-                bat 'start /B python app.py > app.log 2>&1'
-                
-                bat 'timeout /t 5 /nobreak'
+             
+                bat 'taskkill /F /IM python.exe /T > nul 2>&1 || exit 0'
 
+           
                 bat '''
-                    echo Проверка доступности сайта...
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok = $false; for ($i = 0; $i -lt 15; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1/' -UseBasicParsing -TimeoutSec 3; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}; Start-Sleep -Seconds 2 }; if (-not $ok) { exit 1 }"
+                    echo @echo off > run_server.bat
+                    echo cd /d %CD% >> run_server.bat
+                    echo "%PYTHON%" -c "from app import app; app.run(host='127.0.0.1', port=80)" >> run_server.bat
+                '''
 
-                    if errorlevel 1 (
-                        echo ОШИБКА: сайт не отвечает.
-                        echo --- ЛОГИ ПРИЛОЖЕНИЯ ---
-                        type app.log
-                        exit /b 1
-                    )
+            
+                withEnv(['JENKINS_NODE_COOKIE=dontKillMe']) {
+                    bat '''
+                        powershell -Command "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c run_server.bat' -WindowStyle Hidden -PassThru; Write-Host 'Запущен процесс с PID:' $p.Id"
+                    '''
+                }
+                
+          
+                bat 'powershell -Command "Start-Sleep -Seconds 5"'
 
-                    echo Сайт успешно запущен: http://localhost
+            
+                bat '''
+                    echo Проверка доступности сайта на http://127.0.0.1/...
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok = $false; for ($i = 0; $i -lt 5; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1/' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}; Start-Sleep -Seconds 1 }; if (-not $ok) { Write-Host '=== ОШИБКА: САЙТ НЕ ОТВЕЧАЕТ НА ПОРТУ 80 ==='; exit 1 }"
+                    echo Сайт успешно запущен по адресу http://127.0.0.1/
                 '''
             }
         }
     }
 
     post {
-        success { echo 'Сборка, тесты и деплой завершены успешно.' }
-        failure { echo 'Ошибка на одном из этапов.' }
-        always  { echo 'Pipeline завершён.' }
+        success {
+            echo "Pipeline finished OK for branch ${env.BRANCH_NAME}"
+        }
+        failure {
+            echo "Pipeline failed on branch ${env.BRANCH_NAME} - check test report"
+        }
     }
 }
