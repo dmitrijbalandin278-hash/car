@@ -23,13 +23,18 @@ pipeline {
                 }
             }
             steps {
-               
+                bat 'start /B python app.py > app.log 2>&1'
+                
+                bat 'timeout /t 5 /nobreak'
+
                 bat '''
-                    echo Проверка доступности сайта через Nginx
+                    echo Проверка доступности сайта...
                     powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok = $false; for ($i = 0; $i -lt 15; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1/' -UseBasicParsing -TimeoutSec 3; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}; Start-Sleep -Seconds 2 }; if (-not $ok) { exit 1 }"
 
                     if errorlevel 1 (
                         echo ОШИБКА: сайт не отвечает.
+                        echo --- ЛОГИ ПРИЛОЖЕНИЯ ---
+                        type app.log
                         exit /b 1
                     )
 
