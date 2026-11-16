@@ -7,8 +7,8 @@ pipeline {
     }
 
     environment {
-        // ДОБАВЛЯЕМ ВАШ ПУТЬ К DOCKER
-        PATH = "C:\\Users\\Дмитрий\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin;${env.PATH}"
+   
+      
         
         DOCKER_CREDENTIALS_ID = 'docker-hub-credentials' 
         IMAGE_NAME            = 'dmitrybalandin278/car-rental-app' 
