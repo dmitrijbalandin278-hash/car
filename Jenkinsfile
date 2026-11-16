@@ -22,7 +22,6 @@ pipeline {
 
         stage('Build Docker image') {
             steps {
-                // Прямой вызов docker из папки C:\DockerBin
                 bat 'C:\\DockerBin\\docker.exe build -t %IMAGE_NAME%:%IMAGE_TAG% -t %IMAGE_NAME%:latest .'
             }
         }
@@ -44,11 +43,11 @@ pipeline {
             }
             steps {
                 script {
-                    // Плагин Jenkins использует свой способ вызова Docker.
-                    // Убедитесь, что путь C:\DockerBin\docker.exe прописан в настройках плагина (Manage Jenkins -> System -> Docker).
+                    // Передаем ID напрямую в плагин. Он сам выполнит docker login.
                     docker.withRegistry('https://registry.hub.docker.com', env.DOCKER_CREDENTIALS_ID) {
-                        docker.image("${env.IMAGE_NAME}:${env.IMAGE_TAG}").push()
-                        docker.image("${env.IMAGE_NAME}:latest").push()
+                        // А для push используем полный путь к docker.exe!
+                        bat 'C:\\DockerBin\\docker.exe push %IMAGE_NAME%:%IMAGE_TAG%'
+                        bat 'C:\\DockerBin\\docker.exe push %IMAGE_NAME%:latest'
                     }
                 }
             }
