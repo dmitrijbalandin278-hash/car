@@ -22,7 +22,6 @@ pipeline {
 
         stage('Build Docker image') {
             steps {
-                // Используем полный путь к docker.exe
                 bat 'C:\\DockerBin\\docker.exe build -t %IMAGE_NAME%:%IMAGE_TAG% -t %IMAGE_NAME%:latest .'
             }
         }
@@ -43,12 +42,8 @@ pipeline {
                 branch 'main'
             }
             steps {
-                // Безопасно достаем логин и токен из Credentials
                 withCredentials([usernamePassword(credentialsId: env.DOCKER_CREDENTIALS_ID, passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
-                    // Логинимся вручную через полный путь
                     bat 'C:\\DockerBin\\docker.exe login -u %DOCKER_USER% -p %DOCKER_PASS%'
-                    
-                    // Загружаем образы
                     bat 'C:\\DockerBin\\docker.exe push %IMAGE_NAME%:%IMAGE_TAG%'
                     bat 'C:\\DockerBin\\docker.exe push %IMAGE_NAME%:latest'
                 }
@@ -60,8 +55,14 @@ pipeline {
                 branch 'main'
             }
             steps {
-                bat 'C:\\DockerBin\\docker.exe compose down || exit 0'
-                bat 'C:\\DockerBin\\docker.exe compose up -d --build'
+                // Передаем тег текущей сборки в docker-compose, чтобы он взял свежий образ
+                withEnv(["IMAGE_TAG=${env.IMAGE_TAG}"]) {
+                    // Останавливаем старые контейнеры
+                    bat 'C:\\DockerBin\\docker-compose.exe down || exit 0'
+                    
+                    // Поднимаем новые контейнеры
+                    bat 'C:\\DockerBin\\docker-compose.exe up -d --build'
+                }
 
                 bat '''
                     echo Проверка доступности сайта через Nginx
@@ -69,8 +70,8 @@ pipeline {
 
                     if errorlevel 1 (
                         echo ОШИБКА: сайт не отвечает.
-                        C:\\DockerBin\\docker.exe compose ps
-                        C:\\DockerBin\\docker.exe compose logs --tail=100
+                        C:\\DockerBin\\docker-compose.exe ps
+                        C:\\DockerBin\\docker-compose.exe logs --tail=100
                         exit /b 1
                     )
 
