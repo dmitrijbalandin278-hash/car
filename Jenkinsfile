@@ -22,15 +22,14 @@ pipeline {
 
         stage('Build Docker image') {
             steps {
-                // Используем полный путь к docker.exe
-                bat '"C:\\Users\\Дмитрий\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t ${env.IMAGE_NAME}:${env.IMAGE_TAG} -t ${env.IMAGE_NAME}:latest .'
+                // Вызываем docker через переменную %USERPROFILE%, чтобы избежать проблем с кириллицей
+                bat 'cmd /c "%USERPROFILE%\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t ${env.IMAGE_NAME}:${env.IMAGE_TAG} -t ${env.IMAGE_NAME}:latest .'
             }
         }
 
         stage('Run tests') {
             steps {
-                // Используем полный путь к docker.exe
-                bat '"C:\\Users\\Дмитрий\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" run --rm ${env.IMAGE_NAME}:${env.IMAGE_TAG} python -m pytest -v --junitxml=reports/results.xml'
+                bat 'cmd /c "%USERPROFILE%\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" run --rm ${env.IMAGE_NAME}:${env.IMAGE_TAG} python -m pytest -v --junitxml=reports/results.xml'
             }
             post {
                 always {
@@ -45,7 +44,9 @@ pipeline {
             }
             steps {
                 script {
-                    // Для docker.withRegistry плагин сам использует полный путь, если он указан в системных настройках Docker
+                    // Плагин Jenkins ищет docker в PATH. 
+                    // Если этот этап упадет, значит, плагин не видит docker.
+                    // Но этапы сборки и тестов должны пройти.
                     docker.withRegistry('https://registry.hub.docker.com', env.DOCKER_CREDENTIALS_ID) {
                         docker.image("${env.IMAGE_NAME}:${env.IMAGE_TAG}").push()
                         docker.image("${env.IMAGE_NAME}:latest").push()
@@ -59,9 +60,8 @@ pipeline {
                 branch 'main'
             }
             steps {
-                // Используем полный путь к docker.exe для команд compose
-                bat '"C:\\Users\\Дмитрий\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose down || exit 0'
-                bat '"C:\\Users\\Дмитрий\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose up -d --build'
+                bat 'cmd /c "%USERPROFILE%\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose down || exit 0'
+                bat 'cmd /c "%USERPROFILE%\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose up -d --build'
 
                 bat '''
                     echo Проверка доступности сайта через Nginx
@@ -69,8 +69,8 @@ pipeline {
 
                     if errorlevel 1 (
                         echo ОШИБКА: сайт не отвечает.
-                        "C:\\Users\\Дмитрий\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose ps
-                        "C:\\Users\\Дмитрий\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose logs --tail=100
+                        "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose ps
+                        "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" compose logs --tail=100
                         exit /b 1
                     )
 
