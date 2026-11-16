@@ -22,6 +22,7 @@ pipeline {
 
         stage('Build Docker image') {
             steps {
+                // Используем полный путь к docker.exe
                 bat 'C:\\DockerBin\\docker.exe build -t %IMAGE_NAME%:%IMAGE_TAG% -t %IMAGE_NAME%:latest .'
             }
         }
@@ -42,13 +43,14 @@ pipeline {
                 branch 'main'
             }
             steps {
-                script {
-                    // Передаем ID напрямую в плагин. Он сам выполнит docker login.
-                    docker.withRegistry('https://registry.hub.docker.com', env.DOCKER_CREDENTIALS_ID) {
-                        // А для push используем полный путь к docker.exe!
-                        bat 'C:\\DockerBin\\docker.exe push %IMAGE_NAME%:%IMAGE_TAG%'
-                        bat 'C:\\DockerBin\\docker.exe push %IMAGE_NAME%:latest'
-                    }
+                // Безопасно достаем логин и токен из Credentials
+                withCredentials([usernamePassword(credentialsId: env.DOCKER_CREDENTIALS_ID, passwordVariable: 'DOCKER_PASS', usernameVariable: 'DOCKER_USER')]) {
+                    // Логинимся вручную через полный путь
+                    bat 'C:\\DockerBin\\docker.exe login -u %DOCKER_USER% -p %DOCKER_PASS%'
+                    
+                    // Загружаем образы
+                    bat 'C:\\DockerBin\\docker.exe push %IMAGE_NAME%:%IMAGE_TAG%'
+                    bat 'C:\\DockerBin\\docker.exe push %IMAGE_NAME%:latest'
                 }
             }
         }
