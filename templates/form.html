@@ -13,7 +13,7 @@
         <label for="{{ field.name }}">{{ field.label }}{% if field.required %} *{% endif %}</label>
         {% if field.type == 'select' %}
           <select id="{{ field.name }}" name="{{ field.name }}" {% if field.required %}required{% endif %}>
-            <option value="">Выберите значение</option>
+            <option value="">Выберите  значение</option>
             {% for option in field.options_data %}<option value="{{ option.id }}" {% if record and record[field.name] == option.id %}selected{% elif request.form.get(field.name, '') == option.id|string %}selected{% endif %}>{{ option.label }}</option>{% endfor %}
           </select>
         {% elif field.type == 'select_values' %}
