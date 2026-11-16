@@ -7,8 +7,11 @@ pipeline {
     }
 
     environment {
-        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials' // ID из Jenkins
-        IMAGE_NAME            = 'dmitrybalandin278/car-rental-app' // Ваш логин/репо на Docker Hub
+        // ДОБАВЛЯЕМ ПУТЬ К DOCKER, чтобы Jenkins мог его найти
+        PATH = "C:\\Program Files\\Docker\\Docker\\resources\\bin;${env.PATH}"
+        
+        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials' 
+        IMAGE_NAME            = 'dmitrybalandin278/car-rental-app' 
         IMAGE_TAG             = "${env.BUILD_NUMBER}"
     }
 
@@ -64,7 +67,6 @@ pipeline {
                 bat 'docker compose down || exit 0'
                 
                 // Запускаем новые контейнеры в фоне (--build заставит собрать образ, если его нет)
-                // Переменная IMAGE_TAG передается в docker-compose.yml
                 bat 'docker compose up -d --build'
 
                 // Проверка доступности
