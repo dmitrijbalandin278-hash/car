@@ -7,8 +7,9 @@ pipeline {
     }
 
     environment {
-      
-        PYTHON = 'C:\\Python314\\python.exe'
+        DOCKER_CREDENTIALS_ID = 'docker-hub-credentials' // ID из Jenkins
+        IMAGE_NAME            = 'dmitrybalandin278/car-rental-app' // Ваш логин/репо на Docker Hub
+        IMAGE_TAG             = "${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -19,65 +20,75 @@ pipeline {
             }
         }
 
-        stage('Setup') {
+        stage('Build Docker image') {
             steps {
-                bat '"%PYTHON%" -m pip install -r requirements.txt'
+                // Собираем образ с тегом текущей сборки и тегом latest
+                bat "docker build -t ${env.IMAGE_NAME}:${env.IMAGE_TAG} -t ${env.IMAGE_NAME}:latest ."
             }
         }
 
-        stage('Test') {
+        stage('Run tests') {
             steps {
-                bat 'if not exist reports mkdir reports'
-                bat '"%PYTHON%" -m pytest -v --junitxml=reports/results.xml'
+                // Тесты запускаем внутри контейнера (окружение идентично продакшну)
+                bat "docker run --rm ${env.IMAGE_NAME}:${env.IMAGE_TAG} python -m pytest -v --junitxml=reports/results.xml"
             }
             post {
                 always {
+                    // Публикуем отчет о тестах в Jenkins
                     junit allowEmptyResults: true, testResults: 'reports/results.xml'
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Push to Docker Hub') {
+            when {
+                branch 'main' // Загружаем на Docker Hub только из ветки main
+            }
+            steps {
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', env.DOCKER_CREDENTIALS_ID) {
+                        // Пушим и версию сборки, и latest
+                        docker.image("${env.IMAGE_NAME}:${env.IMAGE_TAG}").push()
+                        docker.image("${env.IMAGE_NAME}:latest").push()
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to main') {
             when {
                 branch 'main'
             }
             steps {
-             
-                bat 'taskkill /F /IM python.exe /T > nul 2>&1 || exit 0'
-
-           
-                bat '''
-                    echo @echo off > run_server.bat
-                    echo cd /d %CD% >> run_server.bat
-                    echo "%PYTHON%" -c "from app import app; app.run(host='127.0.0.1', port=80)" >> run_server.bat
-                '''
-
-            
-                withEnv(['JENKINS_NODE_COOKIE=dontKillMe']) {
-                    bat '''
-                        powershell -Command "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c run_server.bat' -WindowStyle Hidden -PassThru; Write-Host 'Запущен процесс с PID:' $p.Id"
-                    '''
-                }
+                // Останавливаем старые контейнеры, чтобы не было конфликта портов
+                bat 'docker compose down || exit 0'
                 
-          
-                bat 'powershell -Command "Start-Sleep -Seconds 5"'
+                // Запускаем новые контейнеры в фоне (--build заставит собрать образ, если его нет)
+                // Переменная IMAGE_TAG передается в docker-compose.yml
+                bat 'docker compose up -d --build'
 
-            
+                // Проверка доступности
                 bat '''
-                    echo Проверка доступности сайта на http://127.0.0.1/...
-                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok = $false; for ($i = 0; $i -lt 5; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1/' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}; Start-Sleep -Seconds 1 }; if (-not $ok) { Write-Host '=== ОШИБКА: САЙТ НЕ ОТВЕЧАЕТ НА ПОРТУ 80 ==='; exit 1 }"
-                    echo Сайт успешно запущен по адресу http://127.0.0.1/
+                    echo Проверка доступности сайта через Nginx
+
+                    powershell -NoProfile -ExecutionPolicy Bypass -Command "$ok = $false; for ($i = 0; $i -lt 15; $i++) { try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1/' -UseBasicParsing -TimeoutSec 3; if ($r.StatusCode -eq 200) { $ok = $true; break } } catch {}; Start-Sleep -Seconds 2 }; if (-not $ok) { exit 1 }"
+
+                    if errorlevel 1 (
+                        echo ОШИБКА: сайт не отвечает.
+                        docker compose ps
+                        docker compose logs --tail=100
+                        exit /b 1
+                    )
+
+                    echo Сайт успешно запущен: http://localhost
                 '''
             }
         }
     }
 
     post {
-        success {
-            echo "Pipeline finished OK for branch ${env.BRANCH_NAME}"
-        }
-        failure {
-            echo "Pipeline failed on branch ${env.BRANCH_NAME} - check test report"
-        }
+        success { echo 'Сборка, тесты, push и деплой завершены успешно.' }
+        failure { echo 'Ошибка на одном из этапов.' }
+        always  { echo 'Pipeline завершён.' }
     }
 }
