@@ -1,27 +1,27 @@
-services:
-  # Контейнер с вашим Flask-приложением
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: dmitrybalandin278/car-rental-app:${IMAGE_TAG:-local}
-    restart: unless-stopped
-    volumes:
-      # Пробрасываем папку instance, чтобы база данных SQLite не терялась при перезапуске
-      - ./instance:/app/instance
-    expose:
-      # Открываем порт 5000 только внутри Docker-сети, наружу он не виден
-      - "5000"
+  services:
+    # Контейнер с вашим Flask-приложением
+    app:
+      build:
+        context: .
+        dockerfile: Dockerfile
+      image: dmitrybalandin278/car-rental-app:${IMAGE_TAG:-local}
+      restart: unless-stopped
+      volumes:
+        # Пробрасываем папку instance, чтобы база данных SQLite не терялась при перезапуске
+        - ./instance:/app/instance
+      expose:
+        # Открываем порт 5000 только внутри Docker-сети, наружу он не виден
+        - "5000"
 
-  # Контейнер с Nginx (веб-сервер)
-  nginx:
-    image: nginx:alpine
-    restart: unless-stopped
-    ports:
-      # Пробрасываем порт 80 наружу (на ваш компьютер)
-      - "80:80"
-    volumes:
-      # Подключаем наш конфиг Nginx
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - app
+    # Контейнер с Nginx (веб-сервер)
+    nginx:
+      image: nginx:alpine
+      restart: unless-stopped
+      ports:
+        # Пробрасываем порт 80 наружу (на ваш компьютер)
+        - "80:80"
+      volumes:
+        # Подключаем наш конфиг Nginx
+        - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      depends_on:
+        - app
