@@ -5,7 +5,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: car-service
-  namespace: default
 spec:
   replicas: 2
   selector:
@@ -19,6 +18,7 @@ spec:
       containers:
       - name: car-service
         image: dmitrybalandin278/car-rental-app:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 5000
 ---
@@ -54,6 +54,7 @@ spec:
       containers:
       - name: client-service
         image: dmitrybalandin278/car-rental-app:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 5000
 ---
@@ -89,6 +90,7 @@ spec:
       containers:
       - name: rental-service
         image: dmitrybalandin278/car-rental-app:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 5000
 ---
@@ -124,6 +126,7 @@ spec:
       containers:
       - name: maintenance-service
         image: dmitrybalandin278/car-rental-app:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 5000
 ---
@@ -159,6 +162,7 @@ spec:
       containers:
       - name: gateway
         image: nginx:alpine
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 80
         volumeMounts:
@@ -193,31 +197,26 @@ data:
         listen 80;
         server_name localhost;
 
-        # Автомобили
         location /cars/ {
             proxy_pass http://car-service-svc:5000/;
             proxy_set_header Host $host;
         }
 
-        # Клиенты
         location /clients/ {
             proxy_pass http://client-service-svc:5000/;
             proxy_set_header Host $host;
         }
 
-        # Аренды
         location /rentals/ {
             proxy_pass http://rental-service-svc:5000/;
             proxy_set_header Host $host;
         }
 
-        # Обслуживание
         location /maintenance/ {
             proxy_pass http://maintenance-service-svc:5000/;
             proxy_set_header Host $host;
         }
 
-        # Главная страница
         location / {
             proxy_pass http://car-service-svc:5000/;
             proxy_set_header Host $host;
